@@ -798,7 +798,7 @@ local createSuccess, createResult = pcall(function()
 
 			Flicker = {
 
-				Enabled = true,
+				Enabled = false,
 
 				Duration = 2
 
