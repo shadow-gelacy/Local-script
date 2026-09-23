@@ -1,0 +1,1188 @@
+--//==================================================
+--// WH1T3 - DOORS ENTITY SPAWNER V2
+--// Full Fixed Version
+--//==================================================
+
+--//==================================================
+--// SERVICES
+--//==================================================
+
+local Players = game:GetService("Players")
+local Lighting = game:GetService("Lighting")
+local TweenService = game:GetService("TweenService")
+local Workspace = game:GetService("Workspace")
+local SoundService = game:GetService("SoundService")
+
+local player = Players.LocalPlayer
+
+--//==================================================
+--// DEBUG
+--//==================================================
+
+local DEBUG = true
+
+local MOVEMENT_CHECK_INTERVAL = 0.5
+local MOVEMENT_THRESHOLD = 0.5
+
+local function Debug(...)
+	if DEBUG then
+		print("[WH1T3 DEBUG]", ...)
+	end
+end
+
+local function Warn(...)
+	warn("[WH1T3]", ...)
+end
+
+local function Error(...)
+	warn("[WH1T3 ERROR]", ...)
+end
+
+Debug("======================================")
+Debug("WH1T3 EXECUTE START")
+Debug("Player:", player and player.Name or "Unknown")
+Debug("======================================")
+
+--//==================================================
+--// CONFIG
+--//==================================================
+
+local MODEL_URL =
+	"https://raw.githubusercontent.com/eliazbp92-collab/Impossible-mode/refs/heads/main/WH1T3.rbxm"
+
+local IMAGE_ID = "rbxassetid://110836601743576"
+
+local MODEL_NAME = "WH1T3"
+
+local MODEL_SCALE = 1.8
+
+local ENTITY_SPEED = 800
+
+local ENTITY_DELAY = 12
+
+local DAMAGE = 999999
+
+local DAMAGE_RANGE = 50
+
+local REBOUND_MIN = 4
+local REBOUND_MAX = 5
+local REBOUND_DELAY = 0
+
+local START_SOUND_ID = "rbxassetid://131489490"
+
+local RED_FADE_TIME = 2
+
+--//==================================================
+--// START SOUND
+--//==================================================
+
+local oldStartSound = SoundService:FindFirstChild("WH1T3_StartSound")
+
+if oldStartSound then
+	pcall(function()
+		oldStartSound:Stop()
+		oldStartSound:Destroy()
+	end)
+end
+
+local StartSound = Instance.new("Sound")
+
+StartSound.Name = "WH1T3_StartSound"
+StartSound.SoundId = START_SOUND_ID
+StartSound.Volume = 1
+StartSound.Looped = false
+StartSound.Parent = SoundService
+
+Debug("Start sound created:", START_SOUND_ID)
+
+--//==================================================
+--// SAVE ORIGINAL LIGHTING
+--//==================================================
+
+local OriginalLighting = {
+	Brightness = Lighting.Brightness,
+	ExposureCompensation = Lighting.ExposureCompensation,
+	GlobalShadows = Lighting.GlobalShadows
+}
+
+--//==================================================
+--// SAVE ORIGINAL LIGHTS
+--//==================================================
+
+local OriginalLights = {}
+
+local function SaveLight(light)
+	if not (
+		light:IsA("PointLight")
+		or light:IsA("SpotLight")
+		or light:IsA("SurfaceLight")
+	) then
+		return
+	end
+
+	if OriginalLights[light] then
+		return
+	end
+
+	OriginalLights[light] = {
+		Color = light.Color,
+		Brightness = light.Brightness,
+		Shadows = light.Shadows
+	}
+end
+
+for _, object in ipairs(Workspace:GetDescendants()) do
+	SaveLight(object)
+end
+
+Debug("Saved original lights:", #OriginalLights)
+
+--//==================================================
+--// RED & BLACK EFFECT
+--//==================================================
+
+for _, effectName in ipairs({
+	"RedBlackColorCorrection",
+	"RedBlackBloom"
+}) do
+	local oldEffect = Lighting:FindFirstChild(effectName)
+
+	if oldEffect then
+		pcall(function()
+			oldEffect:Destroy()
+		end)
+
+		Debug("Removed old effect:", effectName)
+	end
+end
+
+local RedCorrection = Instance.new("ColorCorrectionEffect")
+
+RedCorrection.Name = "RedBlackColorCorrection"
+
+RedCorrection.Brightness = -0.03
+RedCorrection.Contrast = 0.65
+RedCorrection.Saturation = 0.15
+RedCorrection.TintColor = Color3.fromRGB(255, 235, 235)
+
+RedCorrection.Parent = Lighting
+
+local RedBloom = Instance.new("BloomEffect")
+
+RedBloom.Name = "RedBlackBloom"
+
+RedBloom.Intensity = 0.45
+RedBloom.Size = 12
+RedBloom.Threshold = 0.75
+
+RedBloom.Parent = Lighting
+
+--//==================================================
+--// RED LIGHT EFFECT
+--//==================================================
+
+local RedEffectActive = true
+local RedFadeStarted = false
+
+local RED_COLOR = Color3.fromRGB(255, 0, 0)
+
+local function ApplyRedLight(light)
+	if not (
+		light:IsA("PointLight")
+		or light:IsA("SpotLight")
+		or light:IsA("SurfaceLight")
+	) then
+		return
+	end
+
+	SaveLight(light)
+
+	pcall(function()
+		light.Color = RED_COLOR
+
+		if light.Brightness < 2.5 then
+			light.Brightness = 2.5
+		end
+
+		light.Shadows = true
+	end)
+end
+
+local function StartRedEffect()
+
+	Debug("Starting RED & BLACK effect.")
+
+	pcall(function()
+		Lighting.Brightness = 1.5
+		Lighting.GlobalShadows = true
+		Lighting.ExposureCompensation = -0.15
+	end)
+
+	for _, object in ipairs(Workspace:GetDescendants()) do
+		if object:IsA("PointLight")
+			or object:IsA("SpotLight")
+			or object:IsA("SurfaceLight") then
+
+			ApplyRedLight(object)
+		end
+	end
+
+	Debug("Existing lights changed to red.")
+end
+
+StartRedEffect()
+
+--//==================================================
+--// MONITOR NEW LIGHTS
+--//==================================================
+
+Workspace.DescendantAdded:Connect(function(object)
+
+	if not RedEffectActive then
+		return
+	end
+
+	if object:IsA("PointLight")
+		or object:IsA("SpotLight")
+		or object:IsA("SurfaceLight") then
+
+		task.wait()
+
+		if RedEffectActive then
+			ApplyRedLight(object)
+		end
+	end
+end)
+
+--//==================================================
+--// FADE RED EFFECT
+--//==================================================
+
+local function FadeRedEffect()
+
+	if RedFadeStarted then
+		return
+	end
+
+	RedFadeStarted = true
+	RedEffectActive = false
+
+	Debug("======================================")
+	Debug("START SOUND FINISHED")
+	Debug("FADING RED EFFECT")
+	Debug("======================================")
+
+	local tweenInfo = TweenInfo.new(
+		RED_FADE_TIME,
+		Enum.EasingStyle.Quad,
+		Enum.EasingDirection.Out
+	)
+
+	--// Restore lights
+	for light, original in pairs(OriginalLights) do
+
+		if light and light.Parent then
+
+			pcall(function()
+
+				TweenService:Create(
+					light,
+					tweenInfo,
+					{
+						Color = original.Color,
+						Brightness = original.Brightness
+					}
+				):Play()
+
+				task.delay(RED_FADE_TIME, function()
+
+					if light and light.Parent then
+
+						pcall(function()
+							light.Shadows = original.Shadows
+						end)
+
+					end
+				end)
+
+			end)
+		end
+	end
+
+	--// Restore Lighting
+	pcall(function()
+
+		TweenService:Create(
+			Lighting,
+			tweenInfo,
+			{
+				Brightness = OriginalLighting.Brightness,
+				ExposureCompensation = OriginalLighting.ExposureCompensation
+			}
+		):Play()
+
+		task.delay(RED_FADE_TIME, function()
+
+			pcall(function()
+				Lighting.GlobalShadows = OriginalLighting.GlobalShadows
+			end)
+
+		end)
+
+	end)
+
+	--// Fade ColorCorrection
+	pcall(function()
+
+		TweenService:Create(
+			RedCorrection,
+			tweenInfo,
+			{
+				Brightness = 0,
+				Contrast = 0,
+				Saturation = 0,
+				TintColor = Color3.fromRGB(255, 255, 255)
+			}
+		):Play()
+
+	end)
+
+	--// Fade Bloom
+	pcall(function()
+
+		TweenService:Create(
+			RedBloom,
+			tweenInfo,
+			{
+				Intensity = 0,
+				Size = 0
+			}
+		):Play()
+
+	end)
+
+	task.delay(RED_FADE_TIME + 0.2, function()
+
+		pcall(function()
+
+			if RedCorrection then
+				RedCorrection:Destroy()
+			end
+
+			if RedBloom then
+				RedBloom:Destroy()
+			end
+
+		end)
+
+		Debug("RED & BLACK EFFECT ENDED.")
+	end)
+end
+
+--//==================================================
+--// PLAY START SOUND
+--//==================================================
+
+local soundSuccess, soundError = pcall(function()
+	StartSound:Play()
+end)
+
+if soundSuccess then
+	Debug("Sound playing: 131489490")
+else
+	Error("Sound failed:", soundError)
+end
+
+StartSound.Ended:Connect(function()
+
+	Debug("Sound 131489490 ended.")
+
+	FadeRedEffect()
+
+	task.delay(0.25, function()
+
+		if StartSound and StartSound.Parent then
+
+			pcall(function()
+				StartSound:Destroy()
+			end)
+
+		end
+
+	end)
+
+end)
+
+--//==================================================
+--// LOAD FUNCTIONS
+--//==================================================
+
+Debug("Loading RegularVynixu Functions...")
+
+local Functions
+
+local functionsSuccess, functionsResult = pcall(function()
+
+	return loadstring(
+		game:HttpGet(
+			"https://raw.githubusercontent.com/RegularVynixu/Utilities/main/Functions.lua"
+		)
+	)()
+
+end)
+
+if not functionsSuccess then
+
+	Error("Functions.lua failed:", functionsResult)
+
+	return
+end
+
+Functions = functionsResult
+
+Debug("Functions loaded.")
+
+--//==================================================
+--// LOAD ENTITY SPAWNER V2
+--//==================================================
+
+Debug("Loading Entity Spawner V2...")
+
+local Spawner
+
+local spawnerSuccess, spawnerResult = pcall(function()
+
+	return loadstring(
+		game:HttpGet(
+			"https://raw.githubusercontent.com/RegularVynixu/DOORS-Entity-Spawner-V2/main/init.luau"
+		)
+	)()
+
+end)
+
+if not spawnerSuccess then
+
+	Error("Entity Spawner V2 failed:", spawnerResult)
+
+	return
+end
+
+Spawner = spawnerResult
+
+if not Spawner then
+
+	Error("Entity Spawner V2 returned nil.")
+
+	return
+end
+
+Debug("Entity Spawner V2 loaded successfully.")
+
+--//==================================================
+--// LOAD ACHIEVEMENT GIVER
+--//==================================================
+
+local achievementGiver
+
+local achievementSuccess, achievementResult = pcall(function()
+
+	return loadstring(
+		game:HttpGet(
+			"https://raw.githubusercontent.com/RegularVynixu/Utilities/main/Doors/Custom%20Achievements/Source.lua"
+		)
+	)()
+
+end)
+
+if achievementSuccess then
+
+	achievementGiver = achievementResult
+
+	Debug("Achievement system loaded.")
+
+else
+
+	Warn(
+		"Achievement system failed:",
+		achievementResult
+	)
+
+end
+
+--//==================================================
+--// LOAD WH1T3 MODEL
+--//==================================================
+
+Debug("Loading WH1T3 model...")
+
+local customModel
+
+local modelSuccess, modelResult = pcall(function()
+
+	return Functions.LoadCustomInstance(
+		MODEL_URL
+	)
+
+end)
+
+if not modelSuccess then
+
+	Error(
+		"WH1T3 model loading failed:",
+		modelResult
+	)
+
+	return
+end
+
+customModel = modelResult
+
+if not customModel then
+
+	Error("WH1T3 model is nil.")
+
+	return
+end
+
+if not customModel:IsA("Model") then
+
+	Error(
+		"WH1T3 asset is not a Model:",
+		customModel.ClassName
+	)
+
+	return
+end
+
+Debug("WH1T3 model loaded successfully.")
+
+--//==================================================
+--// MODEL NAME
+--//==================================================
+
+customModel.Name = MODEL_NAME
+
+--//==================================================
+--// REMOVE EMBEDDED SOUNDS / SCRIPTS
+--//==================================================
+
+Debug("Cleaning WH1T3 model...")
+
+local removedObjects = 0
+
+for _, object in ipairs(customModel:GetDescendants()) do
+
+	if object:IsA("Sound")
+		or object:IsA("Script")
+		or object:IsA("LocalScript")
+		or object:IsA("ModuleScript") then
+
+		pcall(function()
+			object:Destroy()
+		end)
+
+		removedObjects += 1
+	end
+end
+
+Debug("Removed embedded objects:", removedObjects)
+
+--//==================================================
+--// REPLACE TEXTURES
+--//==================================================
+
+Debug("Replacing WH1T3 textures...")
+
+local textureCount = 0
+
+for _, object in ipairs(customModel:GetDescendants()) do
+
+	if object:IsA("Decal") then
+
+		pcall(function()
+			object.Texture = IMAGE_ID
+			textureCount += 1
+		end)
+
+	elseif object:IsA("Texture") then
+
+		pcall(function()
+			object.Texture = IMAGE_ID
+			textureCount += 1
+		end)
+
+	elseif object:IsA("ParticleEmitter") then
+
+		pcall(function()
+			object.Texture = IMAGE_ID
+			textureCount += 1
+		end)
+
+	elseif object:IsA("MeshPart") then
+
+		pcall(function()
+			object.TextureID = IMAGE_ID
+			textureCount += 1
+		end)
+
+	elseif object:IsA("SpecialMesh") then
+
+		pcall(function()
+			object.TextureId = IMAGE_ID
+			textureCount += 1
+		end)
+
+	end
+end
+
+Debug("Texture replacements:", textureCount)
+
+--//==================================================
+--// MODEL SCALE
+--//==================================================
+
+local scaleSuccess, scaleError = pcall(function()
+
+	customModel:ScaleTo(MODEL_SCALE)
+
+end)
+
+if scaleSuccess then
+
+	Debug(
+		"WH1T3 scaled:",
+		MODEL_SCALE
+	)
+
+else
+
+	Warn(
+		"ScaleTo failed:",
+		scaleError
+	)
+
+end
+
+--//==================================================
+--// CHECK PRIMARY PART
+--//==================================================
+
+local rootPart =
+	customModel.PrimaryPart
+	or customModel:FindFirstChildWhichIsA(
+		"BasePart",
+		true
+	)
+
+if not rootPart then
+
+	Error("WH1T3 has no BasePart.")
+
+	return
+end
+
+customModel.PrimaryPart = rootPart
+
+Debug(
+	"WH1T3 PrimaryPart:",
+	rootPart:GetFullName()
+)
+
+--//==================================================
+--// ACHIEVEMENT
+--//==================================================
+
+local achievementGiven = false
+
+local function GiveAchievement()
+
+	if achievementGiven then
+		return
+	end
+
+	achievementGiven = true
+
+	if not achievementGiver then
+
+		Warn(
+			"Achievement giver unavailable."
+		)
+
+		return
+	end
+
+	local success, err = pcall(function()
+
+		achievementGiver({
+			Title = "Fought a beast and survived",
+			Desc = "HOW?",
+			Reason = "Encounter Wh1t3.",
+			Image = "rbxassetid://73795063411796"
+		})
+
+	end)
+
+	if success then
+
+		Debug("Achievement given.")
+
+	else
+
+		Warn(
+			"Achievement failed:",
+			err
+		)
+
+	end
+end
+
+--//==================================================
+--// CREATE V2 ENTITY
+--//==================================================
+
+Debug("Creating WH1T3 entity...")
+
+local entity
+
+local createSuccess, createResult = pcall(function()
+
+	return Spawner:Create({
+
+		Entity = {
+
+			Name = MODEL_NAME,
+
+			Asset = customModel,
+
+			HeightOffset = 0
+
+		},
+
+		Movement = {
+
+			Speed = ENTITY_SPEED,
+
+			Delay = ENTITY_DELAY,
+
+			Reversed = false
+
+		},
+
+		Damage = {
+
+			Enabled = true,
+
+			Range = DAMAGE_RANGE,
+
+			Amount = DAMAGE,
+
+			IgnoreHiding = false
+
+		},
+
+		Rebounding = {
+
+			Enabled = true,
+
+			Type = "Ambush",
+
+			Min = REBOUND_MIN,
+
+			Max = REBOUND_MAX,
+
+			Delay = REBOUND_DELAY
+
+		},
+
+		Lights = {
+
+			Flicker = {
+
+				Enabled = true,
+
+				Duration = 2
+
+			},
+
+			Shatter = true,
+
+			Repair = false
+
+		},
+
+		Earthquake = {
+
+			Enabled = false
+
+		},
+
+		CameraShake = {
+
+			Enabled = true,
+
+			Values = {
+				2,
+				25,
+				0.1,
+				1
+			},
+
+			Range = 100
+
+		},
+
+		Crucifixion = {
+
+			Type = "Guiding",
+
+			Enabled = true,
+
+			Range = 40,
+
+			Resist = false,
+
+			Break = true
+
+		},
+
+		Death = {
+
+			Type = "Guiding",
+
+			Hints = {
+
+				"Don't leave hiding spot",
+
+				"You died to WH1T3",
+
+				"WH1T3 found you",
+
+				"bye"
+
+			},
+
+			Cause = "WH1T3"
+
+		}
+
+	})
+
+end)
+
+if not createSuccess then
+
+	Error(
+		"Spawner:Create failed:",
+		createResult
+	)
+
+	return
+end
+
+entity = createResult
+
+if not entity then
+
+	Error(
+		"Spawner:Create returned nil."
+	)
+
+	return
+end
+
+Debug("WH1T3 entity created.")
+
+--//==================================================
+--// CALLBACK: SPAWNED
+--//==================================================
+
+entity:SetCallback(
+	"OnSpawned",
+	function()
+
+		Debug("======================================")
+		Debug("WH1T3 SPAWNED SUCCESSFULLY")
+		Debug("======================================")
+
+	end
+)
+
+--//==================================================
+--// CALLBACK: START MOVING
+--//==================================================
+
+entity:SetCallback(
+	"OnStartMoving",
+	function()
+
+		Debug("WH1T3 STARTED MOVING.")
+
+	end
+)
+
+--//==================================================
+--// CALLBACK: ENTER ROOM
+--//==================================================
+
+entity:SetCallback(
+	"OnEnterRoom",
+	function(room, firstTime)
+
+		if room then
+
+			Debug(
+				"WH1T3 entered room:",
+				room.Name,
+				"First time:",
+				firstTime
+			)
+
+		end
+
+	end
+)
+
+--//==================================================
+--// CALLBACK: LOOK AT
+--//==================================================
+
+entity:SetCallback(
+	"OnLookAt",
+	function(lineOfSight)
+
+		if DEBUG and lineOfSight then
+
+			Debug(
+				"Player has direct line of sight to WH1T3."
+			)
+
+		end
+
+	end
+)
+
+--//==================================================
+--// CALLBACK: REBOUND
+--//==================================================
+
+entity:SetCallback(
+	"OnRebounding",
+	function(startOfRebound)
+
+		if startOfRebound then
+
+			Debug("WH1T3 REBOUND STARTED.")
+
+		else
+
+			Debug("WH1T3 REBOUND FINISHED.")
+
+		end
+
+	end
+)
+
+--//==================================================
+--// CALLBACK: DAMAGE
+--//==================================================
+
+entity:SetCallback(
+	"OnDamagePlayer",
+	function(newHealth)
+
+		Debug(
+			"WH1T3 damaged player. Health:",
+			newHealth
+		)
+
+	end
+)
+
+--//==================================================
+--// CALLBACK: DESPAWNING
+--//==================================================
+
+entity:SetCallback(
+	"OnDespawning",
+	function()
+
+		Debug(
+			"WH1T3 is despawning."
+		)
+
+	end
+)
+
+--//==================================================
+--// CALLBACK: DESPAWNED
+--//==================================================
+
+entity:SetCallback(
+	"OnDespawned",
+	function()
+
+		Debug("======================================")
+		Debug("WH1T3 DESPAWNED")
+		Debug("======================================")
+
+		GiveAchievement()
+
+	end
+)
+
+--//==================================================
+--// RUN ENTITY
+--//==================================================
+
+Debug("Running WH1T3...")
+
+local runSuccess, runError = pcall(function()
+
+	--// V2 creates & runs a copy
+	entity:Run(true)
+
+end)
+
+if runSuccess then
+
+	Debug("======================================")
+	Debug("WH1T3 RUN SUCCESS")
+	Debug("======================================")
+
+else
+
+	Error(
+		"entity:Run(true) FAILED:",
+		runError
+	)
+
+	return
+end
+
+--//==================================================
+--// MOVEMENT DEBUG
+--//==================================================
+
+task.spawn(function()
+
+	Debug("Movement monitor started.")
+
+	local lastPosition = nil
+
+	while task.wait(MOVEMENT_CHECK_INTERVAL) do
+
+		local model =
+			Workspace:FindFirstChild(MODEL_NAME)
+
+		if model then
+
+			local root =
+				model.PrimaryPart
+				or model:FindFirstChild(
+					"HumanoidRootPart"
+				)
+				or model:FindFirstChildWhichIsA(
+					"BasePart",
+					true
+				)
+
+			if root then
+
+				local currentPosition =
+					root.Position
+
+				if lastPosition then
+
+					local distance =
+						(
+							currentPosition
+							- lastPosition
+						).Magnitude
+
+					if distance >= MOVEMENT_THRESHOLD then
+
+						Debug(
+							"MOVING | Distance:",
+							string.format(
+								"%.2f",
+								distance
+							),
+							"| Position:",
+							currentPosition
+						)
+
+					else
+
+						Debug(
+							"STATIONARY | Distance:",
+							string.format(
+								"%.2f",
+								distance
+							),
+							"| Position:",
+							currentPosition
+						)
+
+					end
+
+				else
+
+					Debug(
+						"Initial WH1T3 position:",
+						currentPosition
+					)
+
+				end
+
+				lastPosition =
+					currentPosition
+
+			else
+
+				Warn(
+					"WH1T3 exists but no BasePart found."
+				)
+
+			end
+		end
+	end
+end)
+
+--//==================================================
+--// SPAWN CHECK
+--//==================================================
+
+task.delay(3, function()
+
+	local model =
+		Workspace:FindFirstChild(MODEL_NAME)
+
+	if model then
+
+		Debug(
+			"Spawn check: WH1T3 exists in Workspace."
+		)
+
+	else
+
+		Warn(
+			"Spawn check: WH1T3 NOT found in Workspace."
+		)
+
+	end
+
+end)
+
+--//==================================================
+--// FINAL
+--//==================================================
+
+Debug("======================================")
+Debug("WH1T3 SETUP COMPLETE")
+Debug("Model:", MODEL_NAME)
+Debug("Speed:", ENTITY_SPEED)
+Debug("Delay:", ENTITY_DELAY)
+Debug("Rebound:", REBOUND_MIN .. "-" .. REBOUND_MAX)
+Debug("Start Sound: 131489490")
+Debug("Red Effect: ACTIVE")
+Debug("======================================")
