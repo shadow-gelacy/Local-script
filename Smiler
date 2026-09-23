@@ -1,523 +1,133 @@
---//==================================================
---// SMILER ENTITY - FULL
---//==================================================
+--// SMILER - CLEAN FULL
 
---// Services
-local Players = game:GetService("Players")
-
-local player = Players.LocalPlayer
-
---//==================================================
---// ENTITY SPAWNER
---//==================================================
+local Workspace = game:GetService("Workspace")
 
 local Spawner = loadstring(game:HttpGet(
-	"https://raw.githubusercontent.com/RegularVynixu/DOORS-Entity-Spawner-V2/main/init.luau"
+    "https://raw.githubusercontent.com/RegularVynixu/DOORS-Entity-Spawner-V2/main/init.luau"
 ))()
 
---//==================================================
---// ACHIEVEMENT GIVER
---//==================================================
-
-local achievementGiver = loadstring(
-	game:HttpGet(
-		"https://raw.githubusercontent.com/RegularVynixu/Utilities/main/Doors/Custom%20Achievements/Source.lua"
-	)
-)()
-
---//==================================================
---// CONFIG
---//==================================================
+local Achievement = loadstring(game:HttpGet(
+    "https://raw.githubusercontent.com/RegularVynixu/Utilities/main/Doors/Custom%20Achievements/Source.lua"
+))()
 
 local MODEL_ID = "rbxassetid://16618965725"
-
-local JUMPSCARE_URL =
-	"https://raw.githubusercontent.com/shadow-gelacy/Local-script/refs/heads/main/IMG_1321.gif"
-
-local JUMPSCARE_FILE = "SmilerJumpscare.gif"
+local CRUCIFIX_COLOR = Color3.fromRGB(255, 60, 60)
 
 local achievementGiven = false
-local jumpscareShown = false
-local healthConnection = nil
 
---//==================================================
---// ACHIEVEMENT
---//==================================================
+local function ConfigureCrucifix(model)
+    if not model or not model:IsA("Model") then
+        return
+    end
 
-local function GiveAchievement()
-	if achievementGiven then
-		return
-	end
+    model:SetAttribute("IsCustomEntity", true)
+    model:SetAttribute("EntityName", "Smiler")
+    model:SetAttribute("CrucifixCompatible", true)
+    model:SetAttribute("CanBeCrucified", true)
+    model:SetAttribute("CrucifixResist", false)
+    model:SetAttribute("CrucifixColor", CRUCIFIX_COLOR)
+    model:SetAttribute("GoingToHell", false)
 
-	achievementGiven = true
+    if not model.PrimaryPart then
+        local root =
+            model:FindFirstChild("HumanoidRootPart", true)
+            or model:FindFirstChild("Root", true)
+            or model:FindFirstChildWhichIsA("BasePart", true)
 
-	pcall(function()
-		achievementGiver({
-			Title = "how why?",
-			Desc = "Don't leave hiding spot",
-			Reason = "Encounter smiler.",
-			Image = MODEL_ID
-		})
-	end)
+        if root then
+            model.PrimaryPart = root
+        end
+    end
 end
 
---//==================================================
---// DOWNLOAD JUMPSCARE
---//==================================================
-
-local function LoadJumpscareAsset()
-	-- Check executor support
-	if not writefile or not isfile or not getcustomasset then
-		warn(
-			"Smiler Jumpscare: writefile/isfile/getcustomasset is not supported."
-		)
-
-		return nil
-	end
-
-	-- Download
-	local success, result = pcall(function()
-
-		if not isfile(JUMPSCARE_FILE) then
-			local data = game:HttpGet(JUMPSCARE_URL)
-
-			if not data or #data == 0 then
-				error("Downloaded GIF is empty")
-			end
-
-			writefile(JUMPSCARE_FILE, data)
-		end
-
-		return getcustomasset(JUMPSCARE_FILE)
-	end)
-
-	if success and result then
-		print("Smiler Jumpscare loaded")
-		return result
-	end
-
-	warn("Smiler Jumpscare failed to load:", result)
-
-	return nil
-end
-
-local JUMPSCARE_ASSET = LoadJumpscareAsset()
-
---//==================================================
---// SHOW JUMPSCARE
---//==================================================
-
-local function ShowJumpscare()
-	if jumpscareShown then
-		return
-	end
-
-	jumpscareShown = true
-
-	local PlayerGui = player:FindFirstChildOfClass("PlayerGui")
-
-	if not PlayerGui then
-		return
-	end
-
-	-- Remove previous GUI
-	local oldGui = PlayerGui:FindFirstChild("SmilerJumpscare")
-
-	if oldGui then
-		oldGui:Destroy()
-	end
-
-	-- ScreenGui
-	local Gui = Instance.new("ScreenGui")
-
-	Gui.Name = "SmilerJumpscare"
-	Gui.IgnoreGuiInset = true
-	Gui.ResetOnSpawn = false
-	Gui.DisplayOrder = 999999
-	Gui.ZIndexBehavior = Enum.ZIndexBehavior.Global
-
-	Gui.Parent = PlayerGui
-
-	-- Full screen image
-	local Image = Instance.new("ImageLabel")
-
-	Image.Name = "Jumpscare"
-	Image.BackgroundColor3 = Color3.new(0, 0, 0)
-	Image.BackgroundTransparency = 0
-	Image.BorderSizePixel = 0
-
-	Image.Position = UDim2.fromScale(0, 0)
-	Image.Size = UDim2.fromScale(1, 1)
-
-	Image.AnchorPoint = Vector2.new(0, 0)
-	Image.ScaleType = Enum.ScaleType.Stretch
-
-	Image.ZIndex = 999999
-
-	Image.Parent = Gui
-
-	-- Load GIF
-	if JUMPSCARE_ASSET then
-		Image.Image = JUMPSCARE_ASSET
-	else
-		warn("Smiler Jumpscare: no image asset available")
-	end
-
-	-- Keep jumpscare for 3 seconds
-	task.delay(3, function()
-
-		if Gui and Gui.Parent then
-			Gui:Destroy()
-		end
-
-	end)
-end
-
---//==================================================
---// HEALTH MONITOR
---//==================================================
-
-local function SetupHealthMonitor()
-
-	if healthConnection then
-		healthConnection:Disconnect()
-		healthConnection = nil
-	end
-
-	local character = player.Character
-
-	if not character then
-		return
-	end
-
-	local humanoid =
-		character:FindFirstChildOfClass("Humanoid")
-
-	if not humanoid then
-		return
-	end
-
-	healthConnection =
-		humanoid.HealthChanged:Connect(function(health)
-
-			print("Smiler health check:", health)
-
-			-- Jumpscare at 1 HP or 0 HP
-			if health <= 1 then
-				ShowJumpscare()
-			end
-
-		end)
-
-	-- Check current health immediately
-	if humanoid.Health <= 1 then
-		ShowJumpscare()
-	end
-end
-
---//==================================================
---// CHARACTER RESPAWN
---//==================================================
-
-player.CharacterAdded:Connect(function()
-
-	jumpscareShown = false
-
-	task.wait(1)
-
-	SetupHealthMonitor()
-
-end)
-
-if player.Character then
-
-	task.spawn(function()
-
-		task.wait(1)
-
-		SetupHealthMonitor()
-
-	end)
-
-end
-
---//==================================================
---// WAIT FOR SMILER TO DISAPPEAR
---//==================================================
-
-local function WaitForSmilerToDisappear(model)
-
-	if not model then
-		GiveAchievement()
-		return
-	end
-
-	local startTime = tick()
-
-	while model.Parent and
-		(tick() - startTime) < 10 do
-
-		task.wait(0.05)
-
-	end
-
-	task.wait(0.1)
-
-	if not model.Parent then
-		GiveAchievement()
-	end
-end
-
---//==================================================
---// CREATE SMILER
---//==================================================
-
-local entity = Spawner:Create({
-
-	--// Entity
-	Entity = {
-
-		Name = "smiler",
-
-		Asset = MODEL_ID,
-
-		HeightOffset = 0
-	},
-
-	--// Movement
-	Movement = {
-
-		Speed = 716,
-
-		Delay = 16,
-
-		Reversed = false
-	},
-
-	--// Damage
-	Damage = {
-
-		Enabled = true,
-
-		Range = 45,
-
-		Amount = 367,
-
-		IgnoreHiding = false
-	},
-
-	--// Lights
-	Lights = {
-
-		Flicker = {
-
-			Enabled = true,
-
-			Duration = 12
-		},
-
-		Shatter = true,
-
-		Repair = false
-	},
-
-	--// Earthquake
-	Earthquake = {
-
-		Enabled = false
-	},
-
-	--// Camera Shake
-	CameraShake = {
-
-		Enabled = true,
-
-		Values = {
-			30,
-			57,
-			0.1,
-			0.4
-		},
-
-		Range = 100
-	},
-
-	--// Rebounding
-	Rebounding = {
-
-		Enabled = true,
-
-		Type = "Ambush",
-
-		Min = 11,
-
-		Max = 13,
-
-		Delay = 0
-	},
-
-	--// Crucifix
-	Crucifixion = {
-
-		Type = "Guiding",
-
-		Enabled = true,
-
-		Range = 40,
-
-		Resist = false,
-
-		Break = true
-	},
-
-	--// Death
-	Death = {
-
-		Type = "Guiding",
-
-		Hints = {
-
-			"remember that is",
-
-			"smiler"
-		},
-
-		Cause = "smiler"
-	}
+local Entity = Spawner:Create({
+    Entity = {
+        Name = "smiler",
+        Asset = MODEL_ID,
+        HeightOffset = 2
+    },
+
+    Movement = {
+        Speed = 716,
+        Delay = 16,
+        Reversed = false
+    },
+
+    Damage = {
+        Enabled = true,
+        Range = 45,
+        Amount = 367,
+        IgnoreHiding = false
+    },
+
+    Lights = {
+        Flicker = {
+            Enabled = true,
+            Duration = 12
+        },
+        Shatter = true,
+        Repair = false
+    },
+
+    Earthquake = {
+        Enabled = false
+    },
+
+    CameraShake = {
+        Enabled = true,
+        Values = {30, 57, 0.1, 0.4},
+        Range = 100
+    },
+
+    Rebounding = {
+        Enabled = true,
+        Type = "Ambush",
+        Min = 11,
+        Max = 13,
+        Delay = 0
+    },
+
+    Crucifixion = {
+        Type = "Guiding",
+        Enabled = true,
+        Range = 100,
+        Resist = false,
+        Break = true
+    },
+
+    Death = {
+        Type = "Guiding",
+        Hints = {
+            "remember that is",
+            "smiler"
+        },
+        Cause = "smiler"
+    }
 })
 
---//==================================================
---// ENTITY CHECK
---//==================================================
+Entity:SetCallback("OnSpawned", function()
+    task.wait(0.1)
 
-if not entity then
-
-	warn("Smiler: failed to create entity")
-
-	return
-end
-
---//==================================================
---// ON SPAWN
---//==================================================
-
-entity:SetCallback("OnSpawned", function()
-
-	print("Smiler spawned")
-
-	task.wait(0.1)
-
-	SetupHealthMonitor()
-
+    if Entity.Model then
+        ConfigureCrucifix(Entity.Model)
+    end
 end)
 
---//==================================================
---// START MOVING
---//==================================================
+Entity:SetCallback("OnDespawned", function()
+    if achievementGiven then
+        return
+    end
 
-entity:SetCallback("OnStartMoving", function()
+    achievementGiven = true
 
-	print("Smiler started moving")
-
+    pcall(function()
+        Achievement({
+            Title = "how why?",
+            Desc = "Don't leave hiding spot",
+            Reason = "Encounter smiler.",
+            Image = MODEL_ID
+        })
+    end)
 end)
 
---//==================================================
---// ENTER ROOM
---//==================================================
-
-entity:SetCallback("OnEnterRoom", function(room, firstTime)
-
-end)
-
---//==================================================
---// LOOK AT
---//==================================================
-
-entity:SetCallback("OnLookAt", function(isInSight)
-
-end)
-
---//==================================================
---// DAMAGE PLAYER
---//==================================================
-
-entity:SetCallback("OnDamagePlayer", function(newHealth)
-
-	task.spawn(function()
-
-		-- Check value returned by spawner
-		if typeof(newHealth) == "number" then
-
-			print(
-				"Smiler damaged player. Health:",
-				newHealth
-			)
-
-			if newHealth <= 1 then
-				ShowJumpscare()
-			end
-
-		end
-
-		-- Direct Humanoid check
-		local character = player.Character
-
-		if character then
-
-			local humanoid =
-				character:FindFirstChildOfClass("Humanoid")
-
-			if humanoid then
-
-				if humanoid.Health <= 1 then
-					ShowJumpscare()
-				end
-
-			end
-		end
-
-		-- Achievement handling
-		local model = entity.Model
-
-		if not model then
-
-			GiveAchievement()
-
-			return
-		end
-
-		WaitForSmilerToDisappear(model)
-
-	end)
-
-end)
-
---//==================================================
---// DESPAWNING
---//==================================================
-
-entity:SetCallback("OnDespawning", function()
-
-	print("Smiler despawning")
-
-end)
-
---//==================================================
---// DESPAWNED
---//==================================================
-
-entity:SetCallback("OnDespawned", function()
-
-	task.wait(0.1)
-
-	GiveAchievement()
-
-end)
-
---//==================================================
---// RUN
---//==================================================
-
-print("Starting Smiler...")
-
-entity:Run()
+Entity:Run()
