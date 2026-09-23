@@ -1,0 +1,488 @@
+--// WH1T3 - FULL COMPACT
+--// Custom Crucifix compatible
+--// Achievement on despawn
+
+local Players = game:GetService("Players")
+local Lighting = game:GetService("Lighting")
+local TweenService = game:GetService("TweenService")
+local Workspace = game:GetService("Workspace")
+local SoundService = game:GetService("SoundService")
+
+local Player = Players.LocalPlayer
+
+--// CONFIG
+local MODEL_URL =
+	"https://raw.githubusercontent.com/eliazbp92-collab/Impossible-mode/refs/heads/main/WH1T3.rbxm"
+
+local MODEL_NAME = "WH1T3"
+local IMAGE_ID = "rbxassetid://110836601743576"
+
+local SPEED = 800
+local DELAY = 12
+
+local DAMAGE = 999999
+local DAMAGE_RANGE = 50
+
+local REBOUND_MIN = 4
+local REBOUND_MAX = 5
+
+local START_SOUND = "rbxassetid://131489490"
+local RED_FADE_TIME = 2
+
+--// LOAD FUNCTIONS
+local Functions = loadstring(game:HttpGet(
+	"https://raw.githubusercontent.com/RegularVynixu/Utilities/main/Functions.lua"
+))()
+
+local Spawner = loadstring(game:HttpGet(
+	"https://raw.githubusercontent.com/RegularVynixu/DOORS-Entity-Spawner-V2/main/init.luau"
+))()
+
+local Achievement = loadstring(game:HttpGet(
+	"https://raw.githubusercontent.com/RegularVynixu/Utilities/main/Doors/Custom%20Achievements/Source.lua"
+))()
+
+--// START SOUND
+local Sound = Instance.new("Sound")
+Sound.Name = "WH1T3_StartSound"
+Sound.SoundId = START_SOUND
+Sound.Volume = 1
+Sound.Parent = SoundService
+
+--// RED / BLACK
+local OldBrightness = Lighting.Brightness
+local OldExposure = Lighting.ExposureCompensation
+
+local OldLights = {}
+
+for _, v in ipairs(Workspace:GetDescendants()) do
+	if v:IsA("PointLight")
+		or v:IsA("SpotLight")
+		or v:IsA("SurfaceLight") then
+
+		OldLights[v] = {
+			Color = v.Color,
+			Brightness = v.Brightness
+		}
+	end
+end
+
+local Red = Instance.new("ColorCorrectionEffect")
+Red.Name = "RedBlackColorCorrection"
+Red.Brightness = -0.03
+Red.Contrast = 0.65
+Red.Saturation = 0.15
+Red.TintColor = Color3.fromRGB(255, 235, 235)
+Red.Parent = Lighting
+
+local Bloom = Instance.new("BloomEffect")
+Bloom.Name = "RedBlackBloom"
+Bloom.Intensity = 0.45
+Bloom.Size = 12
+Bloom.Threshold = 0.75
+Bloom.Parent = Lighting
+
+Lighting.Brightness = 1.5
+Lighting.ExposureCompensation = -0.15
+
+for _, v in ipairs(Workspace:GetDescendants()) do
+	if v:IsA("PointLight")
+		or v:IsA("SpotLight")
+		or v:IsA("SurfaceLight") then
+
+		v.Color = Color3.fromRGB(255, 0, 0)
+
+		if v.Brightness < 2.5 then
+			v.Brightness = 2.5
+		end
+	end
+end
+
+--// END RED EFFECT WHEN SOUND ENDS
+Sound.Ended:Connect(function()
+
+	local Info = TweenInfo.new(
+		RED_FADE_TIME,
+		Enum.EasingStyle.Quad,
+		Enum.EasingDirection.Out
+	)
+
+	for Light, Data in pairs(OldLights) do
+		if Light and Light.Parent then
+			TweenService:Create(
+				Light,
+				Info,
+				{
+					Color = Data.Color,
+					Brightness = Data.Brightness
+				}
+			):Play()
+		end
+	end
+
+	TweenService:Create(
+		Lighting,
+		Info,
+		{
+			Brightness = OldBrightness,
+			ExposureCompensation = OldExposure
+		}
+	):Play()
+
+	TweenService:Create(
+		Red,
+		Info,
+		{
+			Brightness = 0,
+			Contrast = 0,
+			Saturation = 0,
+			TintColor = Color3.fromRGB(255, 255, 255)
+		}
+	):Play()
+
+	TweenService:Create(
+		Bloom,
+		Info,
+		{
+			Intensity = 0
+		}
+	):Play()
+
+	task.delay(RED_FADE_TIME + 0.2, function()
+		if Red then
+			Red:Destroy()
+		end
+
+		if Bloom then
+			Bloom:Destroy()
+		end
+	end)
+
+	task.delay(0.2, function()
+		if Sound then
+			Sound:Destroy()
+		end
+	end)
+end)
+
+Sound:Play()
+
+--// LOAD MODEL
+local Model = Functions.LoadCustomInstance(MODEL_URL)
+
+if not Model then
+	warn("[WH1T3] Failed to load model.")
+	return
+end
+
+Model.Name = MODEL_NAME
+
+--// REMOVE EMBEDDED SCRIPTS / SOUNDS
+for _, v in ipairs(Model:GetDescendants()) do
+	if v:IsA("Sound")
+		or v:IsA("Script")
+		or v:IsA("LocalScript")
+		or v:IsA("ModuleScript") then
+
+		v:Destroy()
+	end
+end
+
+--// TEXTURE
+for _, v in ipairs(Model:GetDescendants()) do
+
+	if v:IsA("Decal")
+		or v:IsA("Texture")
+		or v:IsA("ParticleEmitter") then
+
+		v.Texture = IMAGE_ID
+
+	elseif v:IsA("MeshPart") then
+
+		v.TextureID = IMAGE_ID
+
+	elseif v:IsA("SpecialMesh") then
+
+		v.TextureId = IMAGE_ID
+	end
+end
+
+--// SCALE
+pcall(function()
+	Model:ScaleTo(1.8)
+end)
+
+--// PRIMARY PART
+Model.PrimaryPart =
+	Model.PrimaryPart
+	or Model:FindFirstChild("HumanoidRootPart", true)
+	or Model:FindFirstChild("Root", true)
+	or Model:FindFirstChildWhichIsA("BasePart", true)
+
+if not Model.PrimaryPart then
+	warn("[WH1T3] No PrimaryPart.")
+	return
+end
+
+--// CRUCIFIX COMPATIBILITY
+Model:SetAttribute("IsCustomEntity", true)
+Model:SetAttribute("EntityName", MODEL_NAME)
+Model:SetAttribute("CrucifixCompatible", true)
+Model:SetAttribute("CanBeCrucified", true)
+Model:SetAttribute("CrucifixResist", false)
+Model:SetAttribute("GoingToHell", false)
+
+--// ENTITY
+local Entity = Spawner:Create({
+
+	Entity = {
+		Name = MODEL_NAME,
+		Asset = Model,
+		HeightOffset = 0
+	},
+
+	Movement = {
+		Speed = SPEED,
+		Delay = DELAY,
+		Reversed = false
+	},
+
+	Damage = {
+		Enabled = true,
+		Range = DAMAGE_RANGE,
+		Amount = DAMAGE,
+		IgnoreHiding = false
+	},
+
+	Rebounding = {
+		Enabled = true,
+		Type = "Ambush",
+		Min = REBOUND_MIN,
+		Max = REBOUND_MAX,
+		Delay = 0
+	},
+
+	Lights = {
+		Flicker = {
+			Enabled = false,
+			Duration = 2
+		},
+
+		Shatter = true,
+		Repair = false
+	},
+
+	Earthquake = {
+		Enabled = false
+	},
+
+	CameraShake = {
+		Enabled = true,
+		Values = {2, 25, 0.1, 1},
+		Range = 100
+	},
+
+	-- IMPORTANT:
+	-- Disable built-in Crucifix handling.
+	-- Custom Crucifix handles WH1T3 instead.
+	Crucifixion = {
+		Type = "Guiding",
+		Enabled = false,
+		Range = 40,
+		Resist = false,
+		Break = true
+	},
+
+	Death = {
+		Type = "Guiding",
+
+		Hints = {
+			"Don't leave hiding spot",
+			"You died to WH1T3",
+			"WH1T3 found you",
+			"bye"
+		},
+
+		Cause = "WH1T3"
+	}
+})
+
+--// MAKE THE REAL SPAWNED MODEL CRUCIFIX COMPATIBLE
+local function FixSpawnedModel()
+
+	for _ = 1, 100 do
+
+		local RealModel = Workspace:FindFirstChild(MODEL_NAME)
+
+		if not RealModel then
+
+			for _, v in ipairs(Workspace:GetDescendants()) do
+				if v:IsA("Model")
+					and v:GetAttribute("EntityName") == MODEL_NAME then
+
+					RealModel = v
+					break
+				end
+			end
+		end
+
+		if RealModel and RealModel:IsA("Model") then
+
+			RealModel.Name = MODEL_NAME
+
+			RealModel:SetAttribute(
+				"IsCustomEntity",
+				true
+			)
+
+			RealModel:SetAttribute(
+				"EntityName",
+				MODEL_NAME
+			)
+
+			RealModel:SetAttribute(
+				"CrucifixCompatible",
+				true
+			)
+
+			RealModel:SetAttribute(
+				"CanBeCrucified",
+				true
+			)
+
+			RealModel:SetAttribute(
+				"CrucifixResist",
+				false
+			)
+
+			if RealModel:GetAttribute("GoingToHell") == nil then
+				RealModel:SetAttribute(
+					"GoingToHell",
+					false
+				)
+			end
+
+			RealModel.PrimaryPart =
+				RealModel.PrimaryPart
+				or RealModel:FindFirstChild(
+					"HumanoidRootPart",
+					true
+				)
+				or RealModel:FindFirstChild(
+					"Root",
+					true
+				)
+				or RealModel:FindFirstChildWhichIsA(
+					"BasePart",
+					true
+				)
+
+			print(
+				"[WH1T3] Crucifix compatibility enabled."
+			)
+
+			return RealModel
+		end
+
+		task.wait(0.1)
+	end
+
+	warn(
+		"[WH1T3] Runtime model not found."
+	)
+end
+
+--// CALLBACKS
+Entity:SetCallback(
+	"OnSpawned",
+	function()
+
+		task.spawn(FixSpawnedModel)
+
+	end
+)
+
+Entity:SetCallback(
+	"OnStartMoving",
+	function()
+
+		print("[WH1T3] Started moving.")
+
+	end
+)
+
+Entity:SetCallback(
+	"OnRebounding",
+	function(Start)
+
+		if Start then
+			print("[WH1T3] Rebound started.")
+		else
+			print("[WH1T3] Rebound ended.")
+		end
+
+	end
+)
+
+Entity:SetCallback(
+	"OnDespawning",
+	function()
+
+		print("[WH1T3] Despawning.")
+
+	end
+)
+
+--// ACHIEVEMENT ON DESPAWN
+Entity:SetCallback(
+	"OnDespawned",
+	function()
+
+		pcall(function()
+
+			Achievement({
+
+				Title = "Fought a beast and survived",
+
+				Desc = "HOW?",
+
+				Reason = "Encounter Wh1t3.",
+
+				Image =
+					"rbxassetid://73795063411796"
+
+			})
+
+		end)
+
+		print(
+			"[WH1T3] Despawned - Achievement given."
+		)
+
+	end
+)
+
+--// RUN
+local Success, ErrorMessage =
+	pcall(function()
+
+		Entity:Run(true)
+
+	end)
+
+if not Success then
+
+	warn(
+		"[WH1T3] Run failed:",
+		ErrorMessage
+	)
+
+	return
+end
+
+--// FINAL CHECK
+task.delay(0.5, FixSpawnedModel)
+
+print(
+	"[WH1T3] FULL VERSION LOADED."
+)
