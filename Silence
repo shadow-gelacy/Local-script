@@ -1,0 +1,434 @@
+--// SILENCE - FULL FIX
+--// Model: 125171553498127
+--// Shatter: 8828938165
+--// Damage: 10
+--// Spawn: Current room center
+--// Disappear: When next room opens
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local player = Players.LocalPlayer
+--==================================================
+-- CONFIG
+--==================================================
+local MODEL_ID = "rbxassetid://125171553498127"
+local SHATTER_ID = "rbxassetid://8828938165"
+local DAMAGE = 10
+local DAMAGE_DELAY = 1
+local SPAWN_HEIGHT = 13.5
+local NORMAL_SPEED = 15
+local CROUCH_SPEED = 9
+--==================================================
+-- STOP PREVIOUS SILENCE
+--==================================================
+if _G.SilenceController then
+    _G.SilenceController.Active = false
+end
+local oldSilence = workspace:FindFirstChild("Silence")
+if oldSilence then
+    oldSilence:Destroy()
+end
+local Controller = {
+    Active = true
+}
+_G.SilenceController = Controller
+--==================================================
+-- LOAD FUNCTIONS
+--==================================================
+local Functions
+do
+    local success, result = pcall(function()
+        return loadstring(
+            game:HttpGet(
+                "https://raw.githubusercontent.com/RegularVynixu/Utilities/main/Functions.lua"
+            )
+        )()
+    end)
+    if not success or not result then
+        warn("[Silence] Failed to load Functions.lua")
+        Controller.Active = false
+        return
+    end
+    Functions = result
+end
+--==================================================
+-- LOAD MODEL
+--==================================================
+local silence
+do
+    local success, result = pcall(function()
+        return Functions.LoadCustomInstance(MODEL_ID)
+    end)
+    if not success or typeof(result) ~= "Instance" then
+        warn("[Silence] Failed to load model:", result)
+        Controller.Active = false
+        return
+    end
+    silence = result
+end
+--==================================================
+-- NORMALIZE MODEL
+--==================================================
+if not silence:IsA("Model") then
+    local wrapper = Instance.new("Model")
+    wrapper.Name = "Silence"
+    silence.Parent = wrapper
+    silence = wrapper
+end
+silence.Name = "Silence"
+silence.Parent = workspace
+--==================================================
+-- FIND ROOT
+--==================================================
+local root
+local preferredNames = {
+    "HumanoidRootPart",
+    "RootPart",
+    "RushNew",
+    "Torso",
+    "UpperTorso",
+    "Head"
+}
+for _, name in ipairs(preferredNames) do
+    local found = silence:FindFirstChild(name, true)
+    if found and found:IsA("BasePart") then
+        root = found
+        break
+    end
+end
+if not root then
+    for _, v in ipairs(silence:GetDescendants()) do
+        if v:IsA("BasePart") then
+            root = v
+            break
+        end
+    end
+end
+if not root then
+    warn("[Silence] Model contains no BasePart")
+    silence:Destroy()
+    Controller.Active = false
+    return
+end
+--==================================================
+-- SET PRIMARY PART
+--==================================================
+pcall(function()
+    silence.PrimaryPart = root
+end)
+--==================================================
+-- ENTITY SETTINGS
+--==================================================
+silence:SetAttribute("IsCustomEntity", true)
+silence:SetAttribute("NoAI", false)
+for _, v in ipairs(silence:GetDescendants()) do
+    if v:IsA("BasePart") then
+        v.Anchored = true
+        v.CanCollide = false
+        v.CanTouch = false
+        v.CanQuery = false
+    end
+end
+--==================================================
+-- GET CURRENT ROOM
+--==================================================
+local CurrentRooms = workspace:WaitForChild("CurrentRooms", 10)
+if not CurrentRooms then
+    warn("[Silence] CurrentRooms not found")
+    silence:Destroy()
+    Controller.Active = false
+    return
+end
+local GameData = ReplicatedStorage:FindFirstChild("GameData")
+local LatestRoom = GameData and GameData:FindFirstChild("LatestRoom")
+local spawnRoomNumber
+if LatestRoom then
+    spawnRoomNumber = tonumber(LatestRoom.Value)
+end
+--==================================================
+-- FIND ROOM
+--==================================================
+local room
+if spawnRoomNumber then
+    room = CurrentRooms:FindFirstChild(tostring(spawnRoomNumber))
+end
+-- Fallback: find highest numbered room
+if not room then
+    local highestNumber = -math.huge
+    for _, r in ipairs(CurrentRooms:GetChildren()) do
+        local n = tonumber(r.Name)
+        if n and n > highestNumber then
+            highestNumber = n
+            room = r
+        end
+    end
+end
+--==================================================
+-- SPAWN POSITION
+--==================================================
+local spawnPosition
+if room then
+    local floor
+    local parts = room:FindFirstChild("Parts")
+    if parts then
+        floor = parts:FindFirstChild("Floor")
+    end
+    if floor and floor:IsA("BasePart") then
+        spawnPosition = floor.Position + Vector3.new(0, SPAWN_HEIGHT, 0)
+    else
+        local cf, size = room:GetBoundingBox()
+        spawnPosition = cf.Position
+            + Vector3.new(0, size.Y / 2 + 5, 0)
+    end
+else
+    -- Last fallback: spawn near player
+    local character = player.Character
+    local hrp = character and character:FindFirstChild("HumanoidRootPart")
+    if hrp then
+        spawnPosition = hrp.Position + Vector3.new(0, SPAWN_HEIGHT, 0)
+    end
+end
+if not spawnPosition then
+    warn("[Silence] Could not find spawn position")
+    silence:Destroy()
+    Controller.Active = false
+    return
+end
+--==================================================
+-- MOVE ENTIRE MODEL
+--==================================================
+pcall(function()
+    silence:PivotTo(CFrame.new(spawnPosition))
+end)
+--==================================================
+-- SHATTER LIGHTS
+--==================================================
+local function shatterRoomLights(targetRoom)
+    if not targetRoom then
+        return
+    end
+    -- Play several shatter sounds
+    for i = 1, 3 do
+        task.spawn(function()
+            if i > 1 then
+                task.wait(math.random(2, 8) / 100)
+            end
+            if not Controller.Active then
+                return
+            end
+            local sound = Instance.new("Sound")
+            sound.Name = "SilenceShatter"
+            sound.SoundId = SHATTER_ID
+            sound.Volume = 0.5
+            sound.PlaybackSpeed = math.random(90, 110) / 100
+            sound.Parent = workspace
+            sound:Play()
+            task.delay(2, function()
+                if sound then
+                    sound:Stop()
+                    sound:Destroy()
+                end
+            end)
+        end)
+    end
+    -- DOORS shatter event
+    pcall(function()
+        local EntityInfo = ReplicatedStorage:FindFirstChild("EntityInfo")
+        local UseEventModule =
+            EntityInfo and EntityInfo:FindFirstChild("UseEventModule")
+        if UseEventModule and typeof(firesignal) == "function" then
+            firesignal(
+                UseEventModule.OnClientEvent,
+                "shatter",
+                targetRoom
+            )
+        end
+    end)
+    -- Manual light shutdown
+    pcall(function()
+        for _, v in ipairs(targetRoom:GetDescendants()) do
+            if v:IsA("Light") then
+                v.Enabled = false
+            end
+            if v.Name == "Glow"
+                or v.Name == "Neon"
+                or v.Name == "LightFixture" then
+                if v:IsA("BasePart") then
+                    v.Material = Enum.Material.Glass
+                    v.Color = Color3.fromRGB(50, 50, 50)
+                end
+            end
+        end
+    end)
+end
+if room then
+    shatterRoomLights(room)
+end
+--==================================================
+-- CAPTION
+--==================================================
+local function caption(text)
+    pcall(function()
+        local playerGui = player:FindFirstChild("PlayerGui")
+        if not playerGui then
+            return
+        end
+        local mainUI = playerGui:FindFirstChild("MainUI")
+        if not mainUI then
+            return
+        end
+        local initiator = mainUI:FindFirstChild("Initiator")
+        if not initiator then
+            return
+        end
+        local mainGame = initiator:FindFirstChild("Main_Game")
+        if not mainGame then
+            return
+        end
+        local module = require(mainGame)
+        if module and module.caption then
+            module.caption(text, true)
+        end
+    end)
+end
+--==================================================
+-- CROUCH DETECTION
+--==================================================
+local function getHumanoid()
+    local character = player.Character
+    if not character then
+        return nil
+    end
+    return character:FindFirstChildOfClass("Humanoid")
+end
+local function checkBoolAttribute(instance, name)
+    if not instance then
+        return false
+    end
+    local value = instance:GetAttribute(name)
+    return value == true
+end
+local function isCrouching()
+    local character = player.Character
+    local humanoid = getHumanoid()
+    if not character or not humanoid then
+        return false
+    end
+    -- Common custom crouch attributes
+    local crouchNames = {
+        "Crouching",
+        "IsCrouching",
+        "Crouched",
+        "IsCrouched",
+        "Crouch"
+    }
+    for _, name in ipairs(crouchNames) do
+        if checkBoolAttribute(character, name) then
+            return true
+        end
+        if checkBoolAttribute(humanoid, name) then
+            return true
+        end
+    end
+    -- BoolValues
+    for _, name in ipairs(crouchNames) do
+        local value = character:FindFirstChild(name, true)
+        if value and value:IsA("BoolValue") and value.Value then
+            return true
+        end
+    end
+    -- Standard DOORS crouch speed fallback
+    if humanoid.WalkSpeed <= CROUCH_SPEED then
+        return true
+    end
+    return false
+end
+--==================================================
+-- DAMAGE LOOP
+--==================================================
+task.spawn(function()
+    while Controller.Active do
+        task.wait(DAMAGE_DELAY)
+        if not Controller.Active then
+            break
+        end
+        if not silence
+            or not silence.Parent
+            or silence ~= workspace:FindFirstChild("Silence") then
+            break
+        end
+        local humanoid = getHumanoid()
+        if humanoid and humanoid.Health > 0 then
+            if not isCrouching() then
+                caption("I must crouch.")
+                pcall(function()
+                    humanoid:TakeDamage(DAMAGE)
+                end)
+                -- Fallback if TakeDamage does nothing
+                if humanoid.Health > 0 then
+                    pcall(function()
+                        humanoid.Health = math.max(
+                            0,
+                            humanoid.Health - DAMAGE
+                        )
+                    end)
+                end
+            end
+        end
+    end
+end)
+--==================================================
+-- ROOM CHANGE MONITOR
+--==================================================
+task.spawn(function()
+    while Controller.Active do
+        task.wait(0.1)
+        if not LatestRoom then
+            continue
+        end
+        local currentRoomNumber = tonumber(LatestRoom.Value)
+        if currentRoomNumber
+            and spawnRoomNumber
+            and currentRoomNumber ~= spawnRoomNumber then
+            Controller.Active = false
+            if silence and silence.Parent then
+                silence:Destroy()
+            end
+            break
+        end
+    end
+end)
+--==================================================
+-- CHARACTER RESPAWN SAFETY
+--==================================================
+player.CharacterAdded:Connect(function()
+    if not Controller.Active then
+        return
+    end
+end)
+--==================================================
+-- CLEANUP
+--==================================================
+silence.AncestryChanged:Connect(function(_, parent)
+    if not parent then
+        Controller.Active = false
+    end
+end)
+print(
+    "[Silence] Loaded successfully | Room:",
+    tostring(spawnRoomNumber),
+    "| Model:",
+    silence:GetFullName()
+)
+
+Các lỗi chính đã sửa:
+
+* Không còn rooms[#rooms - 1] vì cách đó có thể lấy sai room.
+* Dùng LatestRoom.Value để xác định room hiện tại.
+* Không chỉ teleport một BasePart; dùng silence:PivotTo() để di chuyển toàn bộ model.
+* Nếu asset là Part thay vì Model, script tự bọc nó thành Model.
+* Có fallback nếu Parts.Floor không tồn tại.
+* Crouch không còn phụ thuộc duy nhất vào WalkSpeed == 15.
+* Damage dùng TakeDamage() và có fallback.
+* Execute lại không tạo nhiều Silence.
+* Sang room mới thì Silence tự biến mất.
+* Có fallback spawn gần player nếu không tìm được room, giúp kiểm tra asset có load được hay không.
