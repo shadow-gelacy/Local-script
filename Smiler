@@ -99,7 +99,9 @@ local Entity = Spawner:Create({
         Type = "Guiding",
         Hints = {
             "remember that is",
-            "smiler"
+            "smiler",
+            "He likes to take a few laps around the hotel",
+            "if you see much light flicker he it comming"
         },
         Cause = "smiler"
     }
