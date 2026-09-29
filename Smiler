@@ -48,7 +48,7 @@ local Entity = Spawner:Create({
     },
 
     Movement = {
-        Speed = 716,
+        Speed = 1250,
         Delay = 16,
         Reversed = false
     },
