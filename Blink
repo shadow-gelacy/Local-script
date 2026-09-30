@@ -2,322 +2,883 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 local SoundService = game:GetService("SoundService")
+
 local LocalPlayer = Players.LocalPlayer
--- MODEL
+
 local MODEL_URL =
-    "https://raw.githubusercontent.com/shadow-gelacy/Model-loader-maker/main/Blink_Model_Cache.rbxm"
--- SETTINGS
+	"https://raw.githubusercontent.com/shadow-gelacy/Model-loader-maker/main/Blink_Model_Cache.rbxm"
+
 local HEIGHT_ABOVE_FLOOR = 3
+
 local DAMAGE = 5
 local DAMAGE_INTERVAL = 1
+
 local CYCLE_TIME = 7
+
 local SOUND_ID = "139658322785649"
 local SOUND_VOLUME = 2
-local gameData = ReplicatedStorage:WaitForChild("GameData")
-local latestRoom = gameData:WaitForChild("LatestRoom")
-local startingRoom = latestRoom.Value
+
+local DEATH_CAUSE = "Blink"
+
+--------------------------------------------------
+-- GAME DATA
+--------------------------------------------------
+
+local gameData =
+	ReplicatedStorage:WaitForChild("GameData")
+
+local latestRoom =
+	gameData:WaitForChild("LatestRoom")
+
+local startingRoom =
+	latestRoom.Value
+
 local stopped = false
--- TRUE = player movement currently causes damage
 local movementDamageActive = false
---==================================================
--- FOLDER
---==================================================
-local BlinkFolder = Instance.new("Folder")
+local crucified = false
+
+--------------------------------------------------
+-- BLINK FOLDER
+--------------------------------------------------
+
+local BlinkFolder =
+	Instance.new("Folder")
+
 BlinkFolder.Name = "Blink"
 BlinkFolder.Parent = Workspace
+
 local model
---==================================================
+
+--------------------------------------------------
 -- SOUND
---==================================================
-local blinkSound = Instance.new("Sound")
+--------------------------------------------------
+
+local blinkSound =
+	Instance.new("Sound")
+
 blinkSound.Name = "BlinkSound"
-blinkSound.SoundId = "rbxassetid://" .. SOUND_ID
+blinkSound.SoundId =
+	"rbxassetid://" .. SOUND_ID
+
 blinkSound.Volume = SOUND_VOLUME
 blinkSound.Parent = SoundService
+
+--------------------------------------------------
+-- STOP BLINK
+--------------------------------------------------
+
+local function StopBlink()
+
+	if crucified then
+		return
+	end
+
+	crucified = true
+	stopped = true
+	movementDamageActive = false
+
+	-- Stop sound immediately
+	if blinkSound then
+		blinkSound:Stop()
+		blinkSound.TimePosition = 0
+	end
+end
+
+--------------------------------------------------
+-- PLAY SOUND
+--------------------------------------------------
+
 local function playBlinkSound()
-    if stopped then
-        return
-    end
-    blinkSound:Stop()
-    blinkSound.TimePosition = 0
-    blinkSound:Play()
+
+	if stopped
+		or crucified then
+		return
+	end
+
+	if model
+		and model:GetAttribute("GoingToHell") == true then
+
+		StopBlink()
+		return
+	end
+
+	if not blinkSound
+		or not blinkSound.Parent then
+		return
+	end
+
+	blinkSound:Stop()
+	blinkSound.TimePosition = 0
+	blinkSound:Play()
 end
---==================================================
+
+--------------------------------------------------
 -- LOAD MODEL
---==================================================
+--------------------------------------------------
+
 local function loadRawModel(url)
-    if not (writefile and getcustomasset) then
-        warn("Blink: executor does not support writefile/getcustomasset.")
-        return nil
-    end
-    local fileName =
-        "Blink_" .. tostring(math.random(100000, 999999)) .. ".rbxm"
-    local success, data = pcall(function()
-        return game:HttpGet(url)
-    end)
-    if not success or not data then
-        warn("Blink: failed to download model.")
-        return nil
-    end
-    local writeSuccess = pcall(function()
-        writefile(fileName, data)
-    end)
-    if not writeSuccess then
-        warn("Blink: failed to write model file.")
-        return nil
-    end
-    local asset
-    local assetSuccess = pcall(function()
-        asset = getcustomasset(fileName)
-    end)
-    if not assetSuccess or not asset then
-        warn("Blink: getcustomasset failed.")
-        return nil
-    end
-    local loaded
-    local getSuccess = pcall(function()
-        local objects = game:GetObjects(asset)
-        if objects and #objects > 0 then
-            loaded = objects[1]
-        end
-    end)
-    if not getSuccess or not loaded then
-        warn("Blink: could not load model.")
-        return nil
-    end
-    loaded.Name = "BlinkModel"
-    loaded.Parent = BlinkFolder
-    return loaded
+
+	if not (
+		writefile
+		and getcustomasset
+	) then
+
+		warn(
+			"Blink: executor does not support writefile/getcustomasset."
+		)
+
+		return nil
+	end
+
+	local fileName =
+		"Blink_" ..
+		tostring(
+			math.random(
+				100000,
+				999999
+			)
+		) ..
+		".rbxm"
+
+	local success, data =
+		pcall(function()
+			return game:HttpGet(url)
+		end)
+
+	if not success
+		or not data then
+
+		warn(
+			"Blink: failed to download model."
+		)
+
+		return nil
+	end
+
+	local writeSuccess =
+		pcall(function()
+			writefile(
+				fileName,
+				data
+			)
+		end)
+
+	if not writeSuccess then
+
+		warn(
+			"Blink: failed to write model file."
+		)
+
+		return nil
+	end
+
+	local asset
+
+	local assetSuccess =
+		pcall(function()
+			asset =
+				getcustomasset(
+					fileName
+				)
+		end)
+
+	if not assetSuccess
+		or not asset then
+
+		warn(
+			"Blink: getcustomasset failed."
+		)
+
+		return nil
+	end
+
+	local loaded
+
+	local getSuccess =
+		pcall(function()
+
+			local objects =
+				game:GetObjects(asset)
+
+			if objects
+				and #objects > 0 then
+
+				loaded =
+					objects[1]
+			end
+		end)
+
+	if not getSuccess
+		or not loaded then
+
+		warn(
+			"Blink: could not load model."
+		)
+
+		return nil
+	end
+
+	--------------------------------------------------
+	-- ENSURE MODEL
+	--------------------------------------------------
+
+	if not loaded:IsA("Model") then
+
+		local wrapper =
+			Instance.new("Model")
+
+		wrapper.Name = "Blink"
+
+		loaded.Parent = wrapper
+
+		if loaded:IsA("BasePart") then
+			wrapper.PrimaryPart = loaded
+		else
+			wrapper.PrimaryPart =
+				loaded:FindFirstChildWhichIsA(
+					"BasePart",
+					true
+				)
+		end
+
+		loaded = wrapper
+	end
+
+	--------------------------------------------------
+	-- ENTITY
+	--------------------------------------------------
+
+	loaded.Name = "Blink"
+	loaded.Parent = BlinkFolder
+
+	--------------------------------------------------
+	-- CRUCIFIX ATTRIBUTES
+	--------------------------------------------------
+
+	loaded:SetAttribute(
+		"EntityName",
+		"Blink"
+	)
+
+	loaded:SetAttribute(
+		"DeathCause",
+		DEATH_CAUSE
+	)
+
+	loaded:SetAttribute(
+		"Cause",
+		DEATH_CAUSE
+	)
+
+	loaded:SetAttribute(
+		"CrucifixCompatible",
+		true
+	)
+
+	loaded:SetAttribute(
+		"CanBeCrucified",
+		true
+	)
+
+	loaded:SetAttribute(
+		"IsCustomEntity",
+		true
+	)
+
+	loaded:SetAttribute(
+		"CrucifixColor",
+		Color3.fromRGB(
+			216,
+			0,
+			240
+		)
+	)
+
+	loaded:SetAttribute(
+		"CrucifixType",
+		"Guiding"
+	)
+
+	loaded:SetAttribute(
+		"CrucifixRange",
+		40
+	)
+
+	loaded:SetAttribute(
+		"CrucifixResist",
+		false
+	)
+
+	loaded:SetAttribute(
+		"CrucifixBreak",
+		true
+	)
+
+	loaded:SetAttribute(
+		"Damage",
+		DAMAGE
+	)
+
+	return loaded
 end
---==================================================
--- ROOM
---==================================================
+
+--------------------------------------------------
+-- GET ROOM
+--------------------------------------------------
+
 local function getRoom()
-    local rooms = Workspace:FindFirstChild("CurrentRooms")
-    if not rooms then
-        return nil
-    end
-    return rooms:FindFirstChild(tostring(latestRoom.Value))
+
+	local rooms =
+		Workspace:FindFirstChild(
+			"CurrentRooms"
+		)
+
+	if not rooms then
+		return nil
+	end
+
+	return rooms:FindFirstChild(
+		tostring(
+			latestRoom.Value
+		)
+	)
 end
---==================================================
+
+--------------------------------------------------
 -- ROOM CENTER
---==================================================
+--------------------------------------------------
+
 local function getRoomCenter(room)
-    if not room then
-        return nil
-    end
-    local nodes = room:FindFirstChild("Nodes")
-    if nodes then
-        local minX = math.huge
-        local maxX = -math.huge
-        local minZ = math.huge
-        local maxZ = -math.huge
-        local found = false
-        for _, obj in ipairs(nodes:GetChildren()) do
-            if obj:IsA("BasePart") then
-                local p = obj.Position
-                minX = math.min(minX, p.X)
-                maxX = math.max(maxX, p.X)
-                minZ = math.min(minZ, p.Z)
-                maxZ = math.max(maxZ, p.Z)
-                found = true
-            end
-        end
-        if found then
-            return Vector3.new(
-                (minX + maxX) / 2,
-                0,
-                (minZ + maxZ) / 2
-            )
-        end
-    end
-    local entrance = room:FindFirstChild("RoomEntrance")
-    local exit = room:FindFirstChild("RoomExit")
-    if entrance
-        and exit
-        and entrance:IsA("BasePart")
-        and exit:IsA("BasePart") then
-        return Vector3.new(
-            (entrance.Position.X + exit.Position.X) / 2,
-            0,
-            (entrance.Position.Z + exit.Position.Z) / 2
-        )
-    end
-    local pivot = room:GetPivot()
-    return Vector3.new(
-        pivot.Position.X,
-        0,
-        pivot.Position.Z
-    )
+
+	if not room then
+		return nil
+	end
+
+	local nodes =
+		room:FindFirstChild(
+			"Nodes"
+		)
+
+	if nodes then
+
+		local minX = math.huge
+		local maxX = -math.huge
+
+		local minZ = math.huge
+		local maxZ = -math.huge
+
+		local found = false
+
+		for _, obj in ipairs(
+			nodes:GetChildren()
+		) do
+
+			if obj:IsA("BasePart") then
+
+				local p =
+					obj.Position
+
+				minX =
+					math.min(
+						minX,
+						p.X
+					)
+
+				maxX =
+					math.max(
+						maxX,
+						p.X
+					)
+
+				minZ =
+					math.min(
+						minZ,
+						p.Z
+					)
+
+				maxZ =
+					math.max(
+						maxZ,
+						p.Z
+					)
+
+				found = true
+			end
+		end
+
+		if found then
+
+			return Vector3.new(
+				(minX + maxX) / 2,
+				0,
+				(minZ + maxZ) / 2
+			)
+		end
+	end
+
+	local entrance =
+		room:FindFirstChild(
+			"RoomEntrance"
+		)
+
+	local exit =
+		room:FindFirstChild(
+			"RoomExit"
+		)
+
+	if entrance
+		and exit
+		and entrance:IsA("BasePart")
+		and exit:IsA("BasePart") then
+
+		return Vector3.new(
+			(
+				entrance.Position.X
+				+ exit.Position.X
+			) / 2,
+
+			0,
+
+			(
+				entrance.Position.Z
+				+ exit.Position.Z
+			) / 2
+		)
+	end
+
+	local pivot =
+		room:GetPivot()
+
+	return Vector3.new(
+		pivot.Position.X,
+		0,
+		pivot.Position.Z
+	)
 end
---==================================================
+
+--------------------------------------------------
 -- FLOOR
---==================================================
-local function getRealFloorY(room, center)
-    if not room or not center then
-        return nil
-    end
-    local nodes = room:FindFirstChild("Nodes")
-    local referenceY
-    if nodes then
-        local lowestNodeY = math.huge
-        for _, obj in ipairs(nodes:GetChildren()) do
-            if obj:IsA("BasePart") then
-                lowestNodeY = math.min(
-                    lowestNodeY,
-                    obj.Position.Y
-                )
-            end
-        end
-        if lowestNodeY ~= math.huge then
-            referenceY = lowestNodeY
-        end
-    end
-    if not referenceY then
-        referenceY = room:GetPivot().Position.Y
-    end
-    local origin = Vector3.new(
-        center.X,
-        referenceY + 8,
-        center.Z
-    )
-    local direction = Vector3.new(0, -25, 0)
-    local params = RaycastParams.new()
-    params.FilterType = Enum.RaycastFilterType.Include
-    params.FilterDescendantsInstances = {room}
-    params.IgnoreWater = true
-    local result = Workspace:Raycast(
-        origin,
-        direction,
-        params
-    )
-    if result and result.Normal.Y > 0.5 then
-        return result.Position.Y
-    end
-    return referenceY
+--------------------------------------------------
+
+local function getRealFloorY(
+	room,
+	center
+)
+
+	if not room
+		or not center then
+
+		return nil
+	end
+
+	local nodes =
+		room:FindFirstChild(
+			"Nodes"
+		)
+
+	local referenceY
+
+	if nodes then
+
+		local lowestNodeY =
+			math.huge
+
+		for _, obj in ipairs(
+			nodes:GetChildren()
+		) do
+
+			if obj:IsA("BasePart") then
+
+				lowestNodeY =
+					math.min(
+						lowestNodeY,
+						obj.Position.Y
+					)
+			end
+		end
+
+		if lowestNodeY ~= math.huge then
+			referenceY =
+				lowestNodeY
+		end
+	end
+
+	if not referenceY then
+		referenceY =
+			room:GetPivot().Position.Y
+	end
+
+	local origin =
+		Vector3.new(
+			center.X,
+			referenceY + 8,
+			center.Z
+		)
+
+	local direction =
+		Vector3.new(
+			0,
+			-25,
+			0
+		)
+
+	local params =
+		RaycastParams.new()
+
+	params.FilterType =
+		Enum.RaycastFilterType.Include
+
+	params.FilterDescendantsInstances = {
+		room
+	}
+
+	params.IgnoreWater = true
+
+	local result =
+		Workspace:Raycast(
+			origin,
+			direction,
+			params
+		)
+
+	if result
+		and result.Normal.Y > 0.5 then
+
+		return result.Position.Y
+	end
+
+	return referenceY
 end
---==================================================
--- MODEL BOTTOM
---==================================================
+
+--------------------------------------------------
+-- BOTTOM Y
+--------------------------------------------------
+
 local function getBottomY(obj)
-    if obj:IsA("Model") then
-        local cf, size = obj:GetBoundingBox()
-        return cf.Position.Y - size.Y / 2
-    elseif obj:IsA("BasePart") then
-        return obj.Position.Y - obj.Size.Y / 2
-    end
-    return nil
+
+	if obj:IsA("Model") then
+
+		local cf, size =
+			obj:GetBoundingBox()
+
+		return
+			cf.Position.Y
+			- size.Y / 2
+
+	elseif obj:IsA("BasePart") then
+
+		return
+			obj.Position.Y
+			- obj.Size.Y / 2
+	end
+
+	return nil
 end
---==================================================
--- POSITION MODEL
---==================================================
+
+--------------------------------------------------
+-- MOVE TO ROOM
+--------------------------------------------------
+
 local function moveToRoomCenter(obj)
-    if stopped or not obj then
-        return
-    end
-    local room = getRoom()
-    if not room then
-        return
-    end
-    local center = getRoomCenter(room)
-    if not center then
-        return
-    end
-    local floorY = getRealFloorY(room, center)
-    if not floorY then
-        return
-    end
-    obj:PivotTo(
-        CFrame.new(
-            center.X,
-            floorY + 5,
-            center.Z
-        )
-    )
-    task.wait()
-    local bottomY = getBottomY(obj)
-    if not bottomY then
-        return
-    end
-    local offset =
-        (floorY + HEIGHT_ABOVE_FLOOR) - bottomY
-    obj:PivotTo(
-        obj:GetPivot()
-        + Vector3.new(0, offset, 0)
-    )
+
+	if stopped
+		or crucified
+		or not obj then
+
+		return
+	end
+
+	if not obj:IsA("Model") then
+		return
+	end
+
+	local room =
+		getRoom()
+
+	if not room then
+		return
+	end
+
+	local center =
+		getRoomCenter(room)
+
+	if not center then
+		return
+	end
+
+	local floorY =
+		getRealFloorY(
+			room,
+			center
+		)
+
+	if not floorY then
+		return
+	end
+
+	obj:PivotTo(
+		CFrame.new(
+			center.X,
+			floorY + 5,
+			center.Z
+		)
+	)
+
+	task.wait()
+
+	if stopped
+		or crucified then
+		return
+	end
+
+	local bottomY =
+		getBottomY(obj)
+
+	if not bottomY then
+		return
+	end
+
+	local offset =
+		(
+			floorY
+			+ HEIGHT_ABOVE_FLOOR
+		)
+		- bottomY
+
+	obj:PivotTo(
+		obj:GetPivot()
+		+ Vector3.new(
+			0,
+			offset,
+			0
+		)
+	)
 end
---==================================================
--- LOAD MODEL
---==================================================
-model = loadRawModel(MODEL_URL)
+
+--------------------------------------------------
+-- LOAD BLINK
+--------------------------------------------------
+
+model =
+	loadRawModel(
+		MODEL_URL
+	)
+
 if not model then
-    warn("Blink: model failed to load.")
-    if BlinkFolder then
-        BlinkFolder:Destroy()
-    end
-    if blinkSound then
-        blinkSound:Destroy()
-    end
-    return
+
+	warn(
+		"Blink: model failed to load."
+	)
+
+	if BlinkFolder then
+		BlinkFolder:Destroy()
+	end
+
+	if blinkSound then
+		blinkSound:Destroy()
+	end
+
+	return
 end
+
 task.wait()
+
 moveToRoomCenter(model)
---==================================================
--- ROOM CHANGE
---==================================================
-latestRoom:GetPropertyChangedSignal("Value"):Connect(function()
-    if latestRoom.Value ~= startingRoom then
-        stopped = true
-        movementDamageActive = false
-        if BlinkFolder then
-            BlinkFolder:Destroy()
-        end
-        if blinkSound then
-            blinkSound:Destroy()
-        end
-    end
+
+--------------------------------------------------
+-- CRUCIFIX DETECTOR
+--------------------------------------------------
+
+model:GetAttributeChangedSignal(
+	"GoingToHell"
+):Connect(function()
+
+	if model:GetAttribute(
+		"GoingToHell"
+	) == true then
+
+		StopBlink()
+	end
 end)
---==================================================
--- DAMAGE
---==================================================
+
+-- If Crucifix already marked it
+if model:GetAttribute(
+	"GoingToHell"
+) == true then
+
+	StopBlink()
+end
+
+--------------------------------------------------
+-- ROOM LIMIT
+--------------------------------------------------
+
+latestRoom:GetPropertyChangedSignal(
+	"Value"
+):Connect(function()
+
+	if latestRoom.Value ~= startingRoom then
+
+		if not crucified then
+			stopped = true
+			movementDamageActive = false
+		end
+
+		if blinkSound then
+			blinkSound:Stop()
+		end
+
+		if BlinkFolder then
+			BlinkFolder:Destroy()
+		end
+
+		if blinkSound then
+			blinkSound:Destroy()
+		end
+	end
+end)
+
+--------------------------------------------------
+-- DAMAGE LOOP
+--------------------------------------------------
+
 task.spawn(function()
-    while not stopped do
-        task.wait(DAMAGE_INTERVAL)
-        if stopped then
-            break
-        end
-        if movementDamageActive then
-            local character = LocalPlayer.Character
-            local humanoid =
-                character
-                and character:FindFirstChildOfClass("Humanoid")
-            if humanoid and humanoid.Health > 0 then
-                if humanoid.MoveDirection.Magnitude > 0.05 then
-                    humanoid:TakeDamage(DAMAGE)
-                end
-            end
-        end
-    end
+
+	while not stopped do
+
+		task.wait(
+			DAMAGE_INTERVAL
+		)
+
+		if stopped
+			or crucified then
+
+			break
+		end
+
+		if movementDamageActive
+			and model
+			and model.Parent
+			and model:GetAttribute(
+				"GoingToHell"
+			) ~= true then
+
+			local character =
+				LocalPlayer.Character
+
+			local humanoid =
+				character
+				and character:FindFirstChildOfClass(
+					"Humanoid"
+				)
+
+			if humanoid
+				and humanoid.Health > 0 then
+
+				if humanoid.MoveDirection.Magnitude
+					> 0.05 then
+
+					humanoid:TakeDamage(
+						DAMAGE
+					)
+				end
+			end
+		end
+	end
 end)
---==================================================
+
+--------------------------------------------------
 -- BLINK CYCLE
---==================================================
+--------------------------------------------------
+
 task.spawn(function()
-    -- Chờ 7 giây đầu tiên
-    task.wait(CYCLE_TIME)
-    while not stopped do
-        -- Phát âm thanh
-        playBlinkSound()
-        -- Bắt đầu trạng thái không được di chuyển
-        movementDamageActive = true
-        -- 7 giây di chuyển sẽ bị damage
-        task.wait(CYCLE_TIME)
-        if stopped then
-            break
-        end
-        -- Hết thời gian nguy hiểm
-        movementDamageActive = false
-        -- 7 giây tiếp theo player được di chuyển bình thường
-        task.wait(CYCLE_TIME)
-    end
+
+	task.wait(
+		CYCLE_TIME
+	)
+
+	while not stopped
+		and not crucified do
+
+		if model
+			and model:GetAttribute(
+				"GoingToHell"
+			) == true then
+
+			StopBlink()
+			break
+		end
+
+		playBlinkSound()
+
+		if stopped
+			or crucified then
+			break
+		end
+
+		movementDamageActive = true
+
+		task.wait(
+			CYCLE_TIME
+		)
+
+		if stopped
+			or crucified then
+			break
+		end
+
+		if model
+			and model:GetAttribute(
+				"GoingToHell"
+			) == true then
+
+			StopBlink()
+			break
+		end
+
+		movementDamageActive = false
+
+		task.wait(
+			CYCLE_TIME
+		)
+	end
 end)
+
+--------------------------------------------------
+-- ENTITY DATA
+--------------------------------------------------
+
+local Death = {
+	Type = "Guiding",
+
+	Hints = {
+		"Blink",
+		"Don't move",
+		"Stay still",
+		"Blink"
+	},
+
+	Cause = DEATH_CAUSE
+}
+
+local Crucifixion = {
+	Type = "Guiding",
+	Enabled = true,
+	Range = 40,
+	Resist = false,
+	Break = true
+}
+
+return {
+	Name = "Blink",
+
+	Death = Death,
+
+	Crucifixion = Crucifixion,
+
+	Damage = DAMAGE,
+
+	Cause = DEATH_CAUSE,
+
+	RoomLimit = 1
+}
