@@ -77,7 +77,6 @@ local function StopBlink()
 	stopped = true
 	movementDamageActive = false
 
-	-- Stop sound immediately
 	if blinkSound then
 		blinkSound:Stop()
 		blinkSound.TimePosition = 0
@@ -85,7 +84,7 @@ local function StopBlink()
 end
 
 --------------------------------------------------
--- PLAY SOUND
+-- PLAY BLINK SOUND
 --------------------------------------------------
 
 local function playBlinkSound()
@@ -96,7 +95,9 @@ local function playBlinkSound()
 	end
 
 	if model
-		and model:GetAttribute("GoingToHell") == true then
+		and model:GetAttribute(
+			"GoingToHell"
+		) == true then
 
 		StopBlink()
 		return
@@ -113,7 +114,7 @@ local function playBlinkSound()
 end
 
 --------------------------------------------------
--- LOAD MODEL
+-- LOAD RAW MODEL
 --------------------------------------------------
 
 local function loadRawModel(url)
@@ -244,15 +245,11 @@ local function loadRawModel(url)
 		loaded = wrapper
 	end
 
-	--------------------------------------------------
-	-- ENTITY
-	--------------------------------------------------
-
 	loaded.Name = "Blink"
 	loaded.Parent = BlinkFolder
 
 	--------------------------------------------------
-	-- CRUCIFIX ATTRIBUTES
+	-- ENTITY ATTRIBUTES
 	--------------------------------------------------
 
 	loaded:SetAttribute(
@@ -285,12 +282,17 @@ local function loadRawModel(url)
 		true
 	)
 
+	--------------------------------------------------
+	-- CRUCIFIX COLOR
+	-- RGB 115, 215, 255
+	--------------------------------------------------
+
 	loaded:SetAttribute(
 		"CrucifixColor",
 		Color3.fromRGB(
-			216,
-			0,
-			240
+			85,
+			206,
+			255
 		)
 	)
 
@@ -323,7 +325,7 @@ local function loadRawModel(url)
 end
 
 --------------------------------------------------
--- GET ROOM
+-- GET CURRENT ROOM
 --------------------------------------------------
 
 local function getRoom()
@@ -345,7 +347,7 @@ local function getRoom()
 end
 
 --------------------------------------------------
--- ROOM CENTER
+-- GET ROOM CENTER
 --------------------------------------------------
 
 local function getRoomCenter(room)
@@ -457,7 +459,7 @@ local function getRoomCenter(room)
 end
 
 --------------------------------------------------
--- FLOOR
+-- GET FLOOR Y
 --------------------------------------------------
 
 local function getRealFloorY(
@@ -551,7 +553,7 @@ local function getRealFloorY(
 end
 
 --------------------------------------------------
--- BOTTOM Y
+-- GET ENTITY BOTTOM
 --------------------------------------------------
 
 local function getBottomY(obj)
@@ -576,7 +578,7 @@ local function getBottomY(obj)
 end
 
 --------------------------------------------------
--- MOVE TO ROOM
+-- MOVE BLINK
 --------------------------------------------------
 
 local function moveToRoomCenter(obj)
@@ -686,7 +688,7 @@ task.wait()
 moveToRoomCenter(model)
 
 --------------------------------------------------
--- CRUCIFIX DETECTOR
+-- GOING TO HELL / CRUCIFIX
 --------------------------------------------------
 
 model:GetAttributeChangedSignal(
@@ -701,7 +703,6 @@ model:GetAttributeChangedSignal(
 	end
 end)
 
--- If Crucifix already marked it
 if model:GetAttribute(
 	"GoingToHell"
 ) == true then
@@ -719,10 +720,8 @@ latestRoom:GetPropertyChangedSignal(
 
 	if latestRoom.Value ~= startingRoom then
 
-		if not crucified then
-			stopped = true
-			movementDamageActive = false
-		end
+		stopped = true
+		movementDamageActive = false
 
 		if blinkSound then
 			blinkSound:Stop()
@@ -855,16 +854,16 @@ local Death = {
 		"Blink",
 		"Don't move",
 		"Stay still",
-		"Blink"
+		"DEATH_CAUSE"
 	},
 
-	Cause = DEATH_CAUSE
+	Cause = blink
 }
 
 local Crucifixion = {
 	Type = "Guiding",
 	Enabled = true,
-	Range = 40,
+	Range = 70,
 	Resist = false,
 	Break = true
 }
