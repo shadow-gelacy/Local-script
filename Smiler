@@ -48,8 +48,8 @@ local Entity = Spawner:Create({
     },
 
     Movement = {
-        Speed = 1250,
-        Delay = 16,
+        Speed = 1000,
+        Delay = 2,
         Reversed = false
     },
 
@@ -82,9 +82,9 @@ local Entity = Spawner:Create({
     Rebounding = {
         Enabled = true,
         Type = "Ambush",
-        Min = 11,
-        Max = 13,
-        Delay = 0
+        Min = 9,
+        Max = 10,
+        Delay = 1
     },
 
     Crucifixion = {
