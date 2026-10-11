@@ -182,7 +182,7 @@ local Entity = Spawner:Create({
     },
     Movement = {
         Speed = 1000,
-        Delay = 2,
+        Delay = 11,
         Reversed = false
     },
     Damage = {
@@ -192,7 +192,7 @@ local Entity = Spawner:Create({
         IgnoreHiding = false
     },
     Lights = {
-        Flicker = {Enabled = true, Duration = 12},
+        Flicker = {Enabled = true, Duration = 8},
         Shatter = true,
         Repair = false
     },
