@@ -1,39 +1,9 @@
 
-local Players = game:GetService("Players")
-local Workspace = game:GetService("Workspace")
-local TweenService = game:GetService("TweenService")
-local LocalPlayer = Players.LocalPlayer
-
-local Spawner = loadstring(game:HttpGet("https://raw.githubusercontent.com/RegularVynixu/DOORS-Entity-Spawner-V2/main/init.luau"))()
-local Achievement = loadstring(game:HttpGet("https://raw.githubusercontent.com/RegularVynixu/Utilities/main/Doors/Custom%20Achievements/Source.lua"))()
-
-local MODEL_ID = "rbxassetid://16618965725"
-local CRUCIFIX_COLOR = Color3.fromRGB(255, 60, 60)
-local achievementGiven, jumpscarePlaying = false, false
-
-local function ConfigureCrucifix(model)
-    if not model or not model:IsA("Model") then return end
-
-    model:SetAttribute("IsCustomEntity", true)
-    model:SetAttribute("EntityName", "Smiler")
-    model:SetAttribute("CrucifixCompatible", true)
-    model:SetAttribute("CanBeCrucified", true)
-    model:SetAttribute("CrucifixResist", false)
-    model:SetAttribute("CrucifixColor", CRUCIFIX_COLOR)
-    model:SetAttribute("GoingToHell", false)
-
-    if not model.PrimaryPart then
-        model.PrimaryPart = model:FindFirstChild("HumanoidRootPart", true)
-            or model:FindFirstChild("Root", true)
-            or model:FindFirstChildWhichIsA("BasePart", true)
-    end
-end
-
-local function playJumpscare()
+local function PlayJumpscare()
     if jumpscarePlaying then return end
     jumpscarePlaying = true
 
-    local playerGui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
+    local playerGui = Player:FindFirstChildOfClass("PlayerGui")
     local camera = Workspace.CurrentCamera
 
     if not playerGui or not camera then
@@ -41,9 +11,10 @@ local function playJumpscare()
         return
     end
 
-    local oldFov, oldType, oldSubject = camera.FieldOfView, camera.CameraType, camera.CameraSubject
+    local oldFov = camera.FieldOfView
+    local oldType = camera.CameraType
+    local oldSubject = camera.CameraSubject
     local gui, sound
-
     local success, err = pcall(function()
         gui = Instance.new("ScreenGui")
         gui.Name = "SmilerJumpscare"
@@ -52,33 +23,28 @@ local function playJumpscare()
         gui.ResetOnSpawn = false
         gui.Parent = playerGui
 
-        local background = Instance.new("ImageLabel")
-        background.Size = UDim2.fromScale(1, 1)
-        background.BackgroundColor3 = Color3.new(0, 0, 0)
-        background.Image = "rbxassetid://78759941702772"
-        background.ImageTransparency = 0.5
-        background.ScaleType = Enum.ScaleType.Stretch
-        background.Parent = gui
+        local redFlash = Instance.new("Frame")
+        redFlash.Size = UDim2.fromScale(1, 1)
+        redFlash.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+        redFlash.BackgroundTransparency = 0.25
+        redFlash.BorderSizePixel = 0
+        redFlash.ZIndex = 2
+        redFlash.Parent = gui
 
         local face = Instance.new("ImageLabel")
+        face.Name = "SmilerFace"
         face.AnchorPoint = Vector2.new(0.5, 0.5)
         face.Position = UDim2.fromScale(0.5, 0.589)
         face.Size = UDim2.fromOffset(1, 1)
         face.BackgroundTransparency = 1
-        face.Image = "rbxassetid://107386174037977"
+        face.Image = FACE_ID
         face.ScaleType = Enum.ScaleType.Fit
+        face.ZIndex = 3
         face.Parent = gui
 
-        local textImage = Instance.new("ImageLabel")
-        textImage.AnchorPoint = Vector2.new(0.5, 0.5)
-        textImage.Position = UDim2.fromScale(0.5, 0.5)
-        textImage.Size = UDim2.fromOffset(150, 150)
-        textImage.BackgroundTransparency = 1
-        textImage.Image = "rbxassetid://0"
-        textImage.Parent = gui
-
         sound = Instance.new("Sound")
-        sound.SoundId = "rbxassetid://5263560566"
+        sound.Name = "SmilerSound"
+        sound.SoundId = SOUND_ID
         sound.Volume = 10
         sound.Looped = true
         sound.Parent = Workspace
@@ -103,160 +69,94 @@ local function playJumpscare()
         camera.CameraType = Enum.CameraType.Scriptable
 
         local duration = 1.1
-        TweenService:Create(camera, TweenInfo.new(duration), {
-            FieldOfView = 60
-        }):Play()
 
-        TweenService:Create(face, TweenInfo.new(duration), {
-            Size = UDim2.fromOffset(1200, 1200),
-            Position = UDim2.fromScale(0.5, 0.5)
-        }):Play()
+        TweenService:Create(
+            camera,
+            TweenInfo.new(duration),
+            {FieldOfView = 60}
+        ):Play()
+
+        TweenService:Create(
+            face,
+            TweenInfo.new(duration),
+            {
+                Size = UDim2.fromOffset(1200, 1200),
+                Position = UDim2.fromScale(0.5, 0.5)
+            }
+        ):Play()
 
         local running = true
 
         task.spawn(function()
             while running and gui.Parent do
-                background.ImageTransparency = 0.3
-                task.wait(0.1)
+                redFlash.BackgroundTransparency = 0.15
+                task.wait(0.07)
                 if not running then break end
-                background.ImageTransparency = 0
-                background.BackgroundTransparency = 0.3
-                task.wait(0.1)
+
+                redFlash.BackgroundTransparency = 0.85
+                task.wait(0.07)
+
+                if not running then break end
+                redFlash.BackgroundTransparency = 0.35
+                task.wait(0.07)
+
+                if not running then break end
+                redFlash.BackgroundTransparency = 1
+                task.wait(0.07)
             end
         end)
 
         task.spawn(function()
             while running and gui.Parent do
                 face.Rotation = 10
-                task.wait()
+                task.wait(0.04)
                 if not running then break end
-                face.Rotation = -10
-                task.wait()
-            end
-        end)
 
-        task.spawn(function()
-            while running and gui.Parent do
-                textImage.ImageTransparency = 0
-                textImage.Position = UDim2.new(math.random(), 0, math.random(), 0)
-                task.wait(0.1)
-                textImage.ImageTransparency = 1
-                task.wait(0.1)
+                face.Rotation = -10
+                task.wait(0.04)
             end
         end)
 
         task.wait(duration)
         running = false
+
         sound:Stop()
 
-        for _, object in ipairs({face, textImage, background}) do
-            TweenService:Create(object, TweenInfo.new(0.5), {
-                ImageTransparency = 1,
-                BackgroundTransparency = 1
-            }):Play()
-        end
+        TweenService:Create(
+            face,
+            TweenInfo.new(0.5),
+            {ImageTransparency = 1}
+        ):Play()
+
+        TweenService:Create(
+            redFlash,
+            TweenInfo.new(0.5),
+            {BackgroundTransparency = 1}
+        ):Play()
 
         task.wait(0.6)
     end)
 
-    if sound then sound:Destroy() end
-    if gui then gui:Destroy() end
+    if sound then
+        sound:Destroy()
+    end
 
-    if camera.Parent then
+    if gui then
+        gui:Destroy()
+    end
+
+    if camera and camera.Parent then
         camera.CameraType = oldType
         camera.FieldOfView = oldFov
+
         if oldSubject and oldSubject.Parent then
             camera.CameraSubject = oldSubject
         end
     end
 
     jumpscarePlaying = false
-    if not success then warn("[Smiler] Jumpscare error:", err) end
+
+    if not success then
+        warn("[Smiler] Jumpscare error:", err)
+    end
 end
-
-local Entity = Spawner:Create({
-    Entity = {
-        Name = "Smiler",
-        Asset = MODEL_ID,
-        HeightOffset = 2
-    },
-    Movement = {
-        Speed = 1000,
-        Delay = 11,
-        Reversed = false
-    },
-    Damage = {
-        Enabled = true,
-        Range = 45,
-        Amount = 367,
-        IgnoreHiding = false
-    },
-    Lights = {
-        Flicker = {Enabled = true, Duration = 8},
-        Shatter = true,
-        Repair = false
-    },
-    Earthquake = {Enabled = false},
-    CameraShake = {
-        Enabled = true,
-        Values = {30, 57, 0.1, 0.4},
-        Range = 100
-    },
-    Rebounding = {
-        Enabled = true,
-        Type = "Ambush",
-        Min = 9,
-        Max = 10,
-        Delay = 1
-    },
-    Crucifixion = {
-        Type = "Guiding",
-        Enabled = true,
-        Range = 100,
-        Resist = false,
-        Break = true
-    },
-    Death = {
-        Type = "Guiding",
-        Hints = {
-            "Remember that it is Smiler.",
-            "He likes to take a few laps around the hotel.",
-            "If you see the lights flicker, he is coming.",
-            "boom bye."
-        },
-        Cause = "Smiler"
-    }
-})
-
-Entity:SetCallback("OnSpawned", function()
-    task.wait(0.1)
-    ConfigureCrucifix(Entity.Model)
-end)
-
-Entity:SetCallback("OnDespawned", function()
-    if achievementGiven then return end
-    achievementGiven = true
-
-    pcall(function()
-        Achievement({
-            Title = "how why?",
-            Desc = "Don't leave hiding spot",
-            Reason = "Encounter Smiler.",
-            Image = MODEL_ID
-        })
-    end)
-end)
-
-local function connectCharacter(character)
-    local humanoid = character:WaitForChild("Humanoid")
-    humanoid.Died:Connect(playJumpscare)
-end
-
-if LocalPlayer.Character then
-    task.spawn(connectCharacter, LocalPlayer.Character)
-end
-
-LocalPlayer.CharacterAdded:Connect(connectCharacter)
-
-Entity:Run()
-print("[Smiler] Entity loaded")
